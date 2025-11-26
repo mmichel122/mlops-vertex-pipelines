@@ -48,7 +48,7 @@ jobs:
     - name: Install Python dependencies
       run: |
         pip install --upgrade pip
-        pip install kfp google-cloud-aiplatform google-cloud-pipeline-components pyyaml
+        pip install kfp "google-cloud-aiplatform[kfp]" pyyaml
 
     # -----------------------------------------------------
     # 4. LINT (OPTIONAL)
@@ -111,6 +111,7 @@ jobs:
       run: |
         set -xe
         echo "PYTHONPATH=$PYTHONPATH:$(pwd)" >> $GITHUB_ENV
+        pip install kfp "google-cloud-aiplatform[kfp]" pyyaml
         python -u pipeline/pipeline.py
 
     # -----------------------------------------------------

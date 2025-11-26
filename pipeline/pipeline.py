@@ -2,8 +2,12 @@ import json
 import yaml
 from kfp import dsl
 
-from google_cloud_pipeline_components.v1.model.upload_model import ModelUploadOp
-from google_cloud_pipeline_components.v1.endpoint.deploy_model import EndpointDeployModelOp
+# OFFICIAL, SUPPORTED IMPORTS
+from vertexai.pipeline_components import (
+    ModelUploadOp,
+    EndpointCreateOp,
+    EndpointDeployModelOp,
+)
 
 from components.preprocess import preprocess_op
 from components.train import train_op
@@ -65,7 +69,7 @@ def vertex_pipeline(
         baseline=baseline_accuracy,
     )
 
-    # 5️⃣ REGISTER MODEL (GCPC)
+    # 5️⃣ REGISTER MODEL
     upload = ModelUploadOp(
         project=PROJECT,
         location=REGION,
@@ -76,16 +80,23 @@ def vertex_pipeline(
         ),
     )
 
-    # 6️⃣ CONDITIONAL DEPLOYMENT
+    # 6️⃣ CREATE ENDPOINT IF NOT EXISTS
+    create_endpoint = EndpointCreateOp(
+        project=PROJECT,
+        location=REGION,
+        display_name="iris-endpoint",
+    ).set_display_name("create-endpoint")
+
+    # 7️⃣ CONDITIONAL DEPLOYMENT
     with dsl.Condition(decision.output == 1.0):
         EndpointDeployModelOp(
             project=PROJECT,
             location=REGION,
+            endpoint=create_endpoint.outputs["endpoint"],
             model=upload.outputs["model"],
-            endpoint=endpoint_name,
         )
 
-
+# Compile
 if __name__ == "__main__":
     from kfp import compiler
     compiler.Compiler().compile(
