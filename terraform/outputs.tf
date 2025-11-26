@@ -2,8 +2,8 @@ output "service_account_email" {
   value = google_service_account.mlops_sa.email
 }
 
-output "artifact_registry" {
-  value = google_artifact_registry_repository.mlops_repo.repository_uri
+output "artifact_registry_url" {
+  value = "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.mlops_repo.repository_id}"
 }
 
 output "bucket" {
