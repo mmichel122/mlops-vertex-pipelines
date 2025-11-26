@@ -5,6 +5,9 @@ on:
     branches: ["main"]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 env:
   PROJECT_ID: mlops-vertex-playground
   REGION: europe-west4
@@ -64,14 +67,23 @@ jobs:
         pytest -q || true
 
     # -----------------------------------------------------
-    # 6. SETUP GCLOUD AUTH
+    # 6. AUTHENTICATE TO GOOGLE CLOUD
     # -----------------------------------------------------
-    - name: Setup gcloud
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v2
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+    - name: Setup gcloud CLI
       uses: google-github-actions/setup-gcloud@v2
       with:
         project_id: ${{ env.PROJECT_ID }}
-        service_account_key: ${{ secrets.GCP_SA_KEY }}
-        export_default_credentials: true
+        version: "latest"
+
+    - name: Verify gcloud auth (debug step)
+      run: |
+        gcloud auth list
+        gcloud config list
 
     # -----------------------------------------------------
     # 7. BUILD & PUSH TRAINING DOCKER IMAGE
@@ -106,19 +118,19 @@ jobs:
       run: |
         RUN_ID=$(gcloud ai pipelines run ${{ env.PIPELINE_NAME }} \
           --region=${{ env.REGION }} \
-          --file=pipeline.json \
           --project=${{ env.PROJECT_ID }} \
+          --file=pipeline.json \
           --format="value(name)" \
           --parameter=dataset_uri=gs://mlops-vertex-playground/dataset/iris.csv \
-          --parameter=endpoint_name="projects/${{ env.PROJECT_ID }}/locations/${{ env.REGION }}/endpoints/iris-classification-endpoint" )
+          --parameter=endpoint_name=projects/${{ env.PROJECT_ID }}/locations/${{ env.REGION }}/endpoints/iris-classification-endpoint)
 
         echo "PIPELINE RUN ID: $RUN_ID"
         echo "Run submitted successfully."
 
     # -----------------------------------------------------
-    # 10. POST SLACK / EMAIL NOTIFICATION (optional)
+    # 10. NOTIFICATION (optional)
     # -----------------------------------------------------
-    - name: Notify (optional)
+    - name: Notify
       if: always()
       run: |
         echo "Pipeline finished. Status: ${{ job.status }}"
