@@ -1,0 +1,124 @@
+name: Vertex AI MLOps Pipeline
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+env:
+  PROJECT_ID: mlops-vertex-playground
+  REGION: europe-west4
+  REPOSITORY: mlops
+  IMAGE_NAME: train
+  PIPELINE_NAME: vertex-mlops
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    # -----------------------------------------------------
+    # 1. CHECKOUT CODE
+    # -----------------------------------------------------
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    # -----------------------------------------------------
+    # 2. SETUP PYTHON & CACHE
+    # -----------------------------------------------------
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    - name: Cache pip
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    # -----------------------------------------------------
+    # 3. INSTALL BASE DEPENDENCIES
+    # -----------------------------------------------------
+    - name: Install Python dependencies
+      run: |
+        pip install --upgrade pip
+        pip install kfp google-cloud-aiplatform pyyaml
+
+    # -----------------------------------------------------
+    # 4. LINT (OPTIONAL)
+    # -----------------------------------------------------
+    - name: Lint with flake8
+      run: |
+        pip install flake8
+        flake8 . || true
+
+    # -----------------------------------------------------
+    # 5. RUN TESTS (OPTIONAL)
+    # -----------------------------------------------------
+    - name: Run tests
+      run: |
+        pip install pytest
+        pytest -q || true
+
+    # -----------------------------------------------------
+    # 6. SETUP GCLOUD AUTH
+    # -----------------------------------------------------
+    - name: Setup gcloud
+      uses: google-github-actions/setup-gcloud@v2
+      with:
+        project_id: ${{ env.PROJECT_ID }}
+        service_account_key: ${{ secrets.GCP_SA_KEY }}
+        export_default_credentials: true
+
+    # -----------------------------------------------------
+    # 7. BUILD & PUSH TRAINING DOCKER IMAGE
+    # -----------------------------------------------------
+    - name: Configure Docker for Artifact Registry
+      run: |
+        gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+    - name: Build & push training container
+      run: |
+        IMAGE_TAG=$(git rev-parse --short HEAD)
+        FULL_IMAGE="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG}"
+
+        echo "Building image: $FULL_IMAGE"
+        cd training/docker
+        docker build -t "$FULL_IMAGE" .
+        docker push "$FULL_IMAGE"
+
+        echo "IMAGE_URI=$FULL_IMAGE" >> $GITHUB_ENV
+
+    # -----------------------------------------------------
+    # 8. COMPILE PIPELINE → pipeline.json
+    # -----------------------------------------------------
+    - name: Compile Vertex Pipeline
+      run: |
+        python pipeline/pipeline.py
+
+    # -----------------------------------------------------
+    # 9. RUN PIPELINE IN VERTEX AI
+    # -----------------------------------------------------
+    - name: Run Vertex Pipeline
+      run: |
+        RUN_ID=$(gcloud ai pipelines run ${{ env.PIPELINE_NAME }} \
+          --region=${{ env.REGION }} \
+          --file=pipeline.json \
+          --project=${{ env.PROJECT_ID }} \
+          --format="value(name)" \
+          --parameter=dataset_uri=gs://mlops-vertex-playground/dataset/iris.csv \
+          --parameter=endpoint_name="projects/${{ env.PROJECT_ID }}/locations/${{ env.REGION }}/endpoints/iris-classification-endpoint" )
+
+        echo "PIPELINE RUN ID: $RUN_ID"
+        echo "Run submitted successfully."
+
+    # -----------------------------------------------------
+    # 10. POST SLACK / EMAIL NOTIFICATION (optional)
+    # -----------------------------------------------------
+    - name: Notify (optional)
+      if: always()
+      run: |
+        echo "Pipeline finished. Status: ${{ job.status }}"

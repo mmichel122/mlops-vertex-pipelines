@@ -1,0 +1,5 @@
+project: "mlops-vertex-playground"
+region: "europe-west4"
+bucket: "gs://mlops-vertex-playground"
+dataset_uri: "gs://mlops-vertex-playground/dataset/iris.csv"
+endpoint_name: "iris-classification-endpoint"
