@@ -48,7 +48,7 @@ jobs:
     - name: Install Python dependencies
       run: |
         pip install --upgrade pip
-        pip install kfp google-cloud-aiplatform pyyaml
+        pip install kfp google-cloud-aiplatform google-cloud-pipeline-components pyyaml
 
     # -----------------------------------------------------
     # 4. LINT (OPTIONAL)

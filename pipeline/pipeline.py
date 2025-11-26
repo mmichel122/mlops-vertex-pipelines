@@ -1,7 +1,9 @@
 import json
 import yaml
 from kfp import dsl
-from google_cloud_aiplatform import pipeline_components as gcc_aip
+
+from google_cloud_pipeline_components.v1 import aiplatform as gcc_aip
+
 from kfp.dsl import Input, Output, Model
 
 from components.preprocess import preprocess_op
