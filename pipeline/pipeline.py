@@ -2,13 +2,9 @@ import json
 import yaml
 from kfp import dsl
 
-# --- REAL GCPC v1 COMPONENTS ---
-from google_cloud_pipeline_components.v1.model import ModelUploadOp
-from google_cloud_pipeline_components.v1.endpoint.deploy_model import ModelDeployOp
+from google_cloud_pipeline_components.v1.model.upload_model import ModelUploadOp
+from google_cloud_pipeline_components.v1.endpoint.deploy_model import EndpointDeployModelOp
 
-from kfp.dsl import Input, Output, Model
-
-# Your custom components
 from components.preprocess import preprocess_op
 from components.train import train_op
 from components.evaluate import evaluate_op
@@ -63,13 +59,13 @@ def vertex_pipeline(
         region=REGION,
     )
 
-    # 4️⃣ ACCURACY CHECK
+    # 4️⃣ COMPARE ACCURACY
     decision = compare_accuracy(
         new_metrics_path=eval_artifacts["metrics"],
         baseline=baseline_accuracy,
     )
 
-    # 5️⃣ REGISTER MODEL IN VERTEX MODEL REGISTRY
+    # 5️⃣ REGISTER MODEL (GCPC)
     upload = ModelUploadOp(
         project=PROJECT,
         location=REGION,
@@ -80,18 +76,16 @@ def vertex_pipeline(
         ),
     )
 
-    # 6️⃣ CONDITIONAL DEPLOYMENT TO ENDPOINT
+    # 6️⃣ CONDITIONAL DEPLOYMENT
     with dsl.Condition(decision.output == 1.0):
-        ModelDeployOp(
+        EndpointDeployModelOp(
             project=PROJECT,
             location=REGION,
             model=upload.outputs["model"],
             endpoint=endpoint_name,
-            deployed_model_display_name="iris-model-deployed",
-            traffic_percentage=100,
         )
 
-# ---------------- MAIN (compiler) ----------------
+
 if __name__ == "__main__":
     from kfp import compiler
     compiler.Compiler().compile(
