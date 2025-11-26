@@ -2,14 +2,16 @@ import json
 import yaml
 from kfp import dsl
 
-from google_cloud_pipeline_components.v1 import aiplatform as gcc_aip
+# --- REAL GCPC v1 COMPONENTS ---
+from google_cloud_pipeline_components.v1.model import ModelUploadOp
+from google_cloud_pipeline_components.v1.endpoint.deploy_model import ModelDeployOp
 
 from kfp.dsl import Input, Output, Model
 
+# Your custom components
 from components.preprocess import preprocess_op
 from components.train import train_op
 from components.evaluate import evaluate_op
-from components.deploy import deploy_op
 
 # ---------------- LOAD CONFIG ----------------
 with open("pipeline/config.yaml") as f:
@@ -61,14 +63,14 @@ def vertex_pipeline(
         region=REGION,
     )
 
-    # 4️⃣ COMPARE ACCURACY
+    # 4️⃣ ACCURACY CHECK
     decision = compare_accuracy(
         new_metrics_path=eval_artifacts["metrics"],
         baseline=baseline_accuracy,
     )
 
-    # 5️⃣ REGISTER MODEL
-    upload = gcc_aip.ModelUploadOp(
+    # 5️⃣ REGISTER MODEL IN VERTEX MODEL REGISTRY
+    upload = ModelUploadOp(
         project=PROJECT,
         location=REGION,
         display_name="iris-model",
@@ -78,15 +80,18 @@ def vertex_pipeline(
         ),
     )
 
-    # 6️⃣ CONDITIONAL DEPLOYMENT
+    # 6️⃣ CONDITIONAL DEPLOYMENT TO ENDPOINT
     with dsl.Condition(decision.output == 1.0):
-        deploy_op(
+        ModelDeployOp(
+            project=PROJECT,
+            location=REGION,
             model=upload.outputs["model"],
             endpoint=endpoint_name,
-            project=PROJECT,
-            region=REGION,
+            deployed_model_display_name="iris-model-deployed",
+            traffic_percentage=100,
         )
 
+# ---------------- MAIN (compiler) ----------------
 if __name__ == "__main__":
     from kfp import compiler
     compiler.Compiler().compile(
