@@ -84,3 +84,10 @@ def vertex_pipeline(
             project=PROJECT,
             region=REGION,
         )
+
+if __name__ == "__main__":
+    from kfp import compiler
+    compiler.Compiler().compile(
+        pipeline_func=vertex_pipeline,
+        package_path="pipeline.json",
+    )

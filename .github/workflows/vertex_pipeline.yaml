@@ -109,7 +109,9 @@ jobs:
     # -----------------------------------------------------
     - name: Compile Vertex Pipeline
       run: |
-        python pipeline/pipeline.py
+        set -xe
+        echo "PYTHONPATH=$PYTHONPATH:$(pwd)" >> $GITHUB_ENV
+        python -u pipeline/pipeline.py
 
     # -----------------------------------------------------
     # 9. RUN PIPELINE IN VERTEX AI
