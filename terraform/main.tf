@@ -63,44 +63,7 @@ resource "google_project_iam_member" "mlops_sa_roles" {
 }
 
 # ----------------------------------------------------------
-# 5. (Optional) Workload Identity for GitHub Actions
-# ----------------------------------------------------------
-resource "google_iam_workload_identity_pool" "github_pool" {
-  workload_identity_pool_id = "github-pool"
-  display_name              = "GitHub Actions Workload Identity"
-}
-
-resource "google_iam_workload_identity_pool_provider" "github_provider" {
-  workload_identity_pool_id          = google_iam_workload_identity_pool.github_pool.workload_identity_pool_id
-  workload_identity_pool_provider_id = "github"
-  display_name                       = "GitHub OIDC Provider"
-
-  oidc {
-    issuer_uri = "https://token.actions.githubusercontent.com"
-  }
-
-  attribute_mapping = {
-    "google.subject"       = "assertion.sub"
-    "attribute.sub"        = "assertion.sub"
-    "attribute.actor"      = "assertion.actor"
-    "attribute.repository" = "assertion.repository"
-  }
-}
-
-resource "google_service_account_iam_member" "github_binding" {
-  service_account_id = google_service_account.mlops_sa.name
-  role               = "roles/iam.workloadIdentityUser"
-  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github_pool.name}/attribute.repository/${var.github_repo}"
-
-  condition {
-    title       = "github-repo-match"
-    description = "Allow GitHub Actions from this repository"
-    expression  = "attribute.repository == \"${var.github_repo}\""
-  }
-}
-
-# ----------------------------------------------------------
-# 6. Vertex AI Endpoint (Optional - used for auto-deploy)
+# 5. Vertex AI Endpoint (Optional - used for auto-deploy)
 # ----------------------------------------------------------
 resource "google_vertex_ai_endpoint" "mlops_endpoint" {
   display_name = "iris-classification-endpoint"
